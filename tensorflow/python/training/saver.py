@@ -379,7 +379,8 @@ class BaseSaverBuilder(object):
                      restore_sequentially,
                      reshape,
                      preferred_shard=-1,
-                     name="restore_all"):
+                     name="restore_all",
+                     sharded=False):
     """Add operations to restore saveables.
 
     Args:
@@ -398,11 +399,18 @@ class BaseSaverBuilder(object):
     assign_ops = []
     for saveable in saveables:
       restore_control_inputs = assign_ops[-1:] if restore_sequentially else []
-      # Load and optionally reshape on the CPU, as string tensors are not
-      # available on the GPU.
-      # TODO(touts): Re-enable restore on GPU when we can support annotating
-      # string tensors as "HostMemory" inputs.
-      with ops.device(_set_cpu0(saveable.device) if saveable.device else None):
+      if sharded:
+        # Load and optionally reshape on the CPU, as string tensors are not
+        # available on the GPU.
+        # TODO(touts): Re-enable restore on GPU when we can support annotating
+        # string tensors as "HostMemory" inputs.
+        restore_device = _set_cpu0(saveable.device) if saveable.device else None
+      else:
+        # Do not override device for non-sharded restore, so that SaveOp and
+        # RestoreOp end up on the same device.  This adds support for checkpoint
+        # restore in distributed cases where shared filesystem is not available.
+        restore_device = ''
+      with ops.device(restore_device):
         with ops.control_dependencies(restore_control_inputs):
           tensors = self.restore_op(filename_tensor, saveable, preferred_shard)
           shapes = None
@@ -447,7 +455,8 @@ class BaseSaverBuilder(object):
                 restore_sequentially,
                 reshape,
                 preferred_shard=shard,
-                name="restore_shard"))
+                name="restore_shard",
+                sharded=True))
     return control_flow_ops.group(*sharded_restores, name="restore_all")
 
   @staticmethod
