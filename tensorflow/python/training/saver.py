@@ -1132,7 +1132,12 @@ class Saver(object):
           "Either set defer_build=False or var_list=None.")
     self._var_list = var_list
     self._reshape = reshape
-    self._sharded = sharded
+    if sharded:
+      # Sharded saving requires distributed filesystem, which we don't have at the moment.
+      # New TensorFlow libraries use sharded Saver.  Short-circuit to sharded=False here,
+      # since it's easier than continuously tracking down new code that will use sharded Saver.
+      logging.warning("Saver(sharded=True) is not supported by Michelangelo.  Defaulting to Saver(sharded=False).")
+    self._sharded = False
     self._max_to_keep = max_to_keep
     self._keep_checkpoint_every_n_hours = keep_checkpoint_every_n_hours
     self._name = name
