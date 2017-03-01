@@ -34,6 +34,7 @@ limitations under the License.
 #include "tensorflow/core/distributed_runtime/master_session.h"
 #include "tensorflow/core/distributed_runtime/rpc/async_service_interface.h"
 #include "tensorflow/core/distributed_runtime/rpc/grpc_channel.h"
+#include "tensorflow/core/distributed_runtime/rpc/grpc_file_resolver.h"
 #include "tensorflow/core/distributed_runtime/rpc/grpc_master_service.h"
 #include "tensorflow/core/distributed_runtime/rpc/grpc_worker_cache.h"
 #include "tensorflow/core/distributed_runtime/rpc/grpc_worker_service.h"
@@ -143,8 +144,22 @@ Status GrpcServer::Init(
                                        " was not defined in job \"",
                                        server_def_.job_name(), "\"");
       }
+      string resolved_target;
+      if (grpc_file_resolver_enabled()) {
+        char* resolved_target_cstr =
+              grpc_file_resolver_lookup_name(iter->second.c_str());
+        if (resolved_target_cstr == NULL) {
+          return errors::InvalidArgument(
+              "Could not resolve local server \"", iter->second,
+              "\" in GRPC_LOOKUP_FILE.");
+        }
+        resolved_target = string(resolved_target_cstr);
+        free(resolved_target_cstr);
+      } else {
+        resolved_target = iter->second;
+      }
       const std::vector<string> hostname_port =
-          str_util::Split(iter->second, ':');
+          str_util::Split(resolved_target, ':');
       if (hostname_port.size() != 2 ||
           !strings::safe_strto32(hostname_port[1], &requested_port)) {
         return errors::InvalidArgument(

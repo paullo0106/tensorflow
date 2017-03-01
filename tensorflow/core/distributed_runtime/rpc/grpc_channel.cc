@@ -21,6 +21,7 @@ limitations under the License.
 
 #include "grpc++/create_channel.h"
 
+#include "tensorflow/core/distributed_runtime/rpc/grpc_file_resolver.h"
 #include "tensorflow/core/lib/core/errors.h"
 #include "tensorflow/core/lib/core/status.h"
 #include "tensorflow/core/lib/gtl/map_util.h"
@@ -66,8 +67,15 @@ Status NewHostPortGrpcChannel(const string& target,
   // NOTE(mrry): Some versions of gRPC use a 20-second minimum backoff
   // on connection failure, which makes our tests time out.
   args.SetInt("grpc.testing.fixed_reconnect_backoff_ms", 1000);
+  string grpc_target;
+  if (grpc_file_resolver_enabled()) {
+    // See grpc_file_resolver.c for more details.
+    grpc_target = strings::StrCat("file:///", target);
+  } else {
+    grpc_target = target;
+  }
   *channel_pointer = ::grpc::CreateCustomChannel(
-      target, ::grpc::InsecureChannelCredentials(), args);
+      grpc_target, ::grpc::InsecureChannelCredentials(), args);
   return Status::OK();
 }
 

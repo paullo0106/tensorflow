@@ -87,11 +87,24 @@ cc_library(
 )
 
 cc_library(
+    name = "grpc_file_resolver",
+    srcs = [
+        "grpc_file_resolver.c",
+        "grpc_file_resolver_register.cc"
+    ],
+    hdrs = ["grpc_file_resolver.h"],
+    deps = [
+        "@grpc//:grpc_unsecure",
+    ],
+)
+
+cc_library(
     name = "grpc_channel",
     srcs = ["grpc_channel.cc"],
     hdrs = ["grpc_channel.h"],
     deps = [
         ":grpc_util",
+        ":grpc_file_resolver",
         "//tensorflow/core:framework",
         "//tensorflow/core:lib",
         "//tensorflow/core:lib_internal",
