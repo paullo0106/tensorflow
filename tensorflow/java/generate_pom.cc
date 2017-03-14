@@ -46,6 +46,14 @@ int main(int argc, char** argv) {
     <connection>git@github.com:tensorflow/tensorflow.git</connection>
     <developerConnection>scm:git:https://github.com/tensorflow/tensorflow.git</developerConnection>
   </scm>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.google.protobuf</groupId>
+      <artifactId>protobuf-java</artifactId>
+      <version>3.2.0</version>
+    </dependency>
+  </dependencies>
 </project>
   )EOF");
 

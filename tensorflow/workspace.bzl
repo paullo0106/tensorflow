@@ -600,6 +600,15 @@ def tf_workspace(path_prefix="", tf_repo_name=""):
   )
 
   java_import_external(
+      name = "protobuf_java",
+      jar_sha256 = "b1c2d420d2833429d11e405a58251e13bd7e3f22c266b49227c41e4d21361286",
+      jar_urls = [
+          "http://repo1.maven.org/maven2/com/google/protobuf/protobuf-java/3.2.0/protobuf-java-3.2.0.jar",
+      ],
+      licenses = ["notice"],
+  )
+
+  java_import_external(
       name = "junit",
       jar_sha256 = "59721f0805e223d84b90677887d9ff567dc534d7c502ca903c0c2b17f05c116a",
       jar_urls = [
