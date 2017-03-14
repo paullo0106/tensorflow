@@ -85,10 +85,9 @@ public final class Tensor implements AutoCloseable {
       t.nativeHandle = allocate(t.dtype.c(), t.shapeCopy, byteSize);
       setValue(t.nativeHandle, obj);
     } else if (t.shapeCopy.length != 0) {
-      throw new UnsupportedOperationException(
-          String.format(
-              "non-scalar DataType.STRING tensors are not supported yet (version %s). Please file a feature request at https://github.com/tensorflow/tensorflow/issues/new",
-              TensorFlow.version()));
+      int byteSize = 8 * numElements(t.shapeCopy) + byteSizeOfEncodedStrings(obj);
+      t.nativeHandle = allocate(t.dtype.c(), t.shapeCopy, byteSize);
+      encodeStringValue(t.nativeHandle, obj, 0);
     } else {
       t.nativeHandle = allocateScalarBytes((byte[]) obj);
     }
@@ -592,6 +591,43 @@ public final class Tensor implements AutoCloseable {
       }
     }
   }
+
+  private static boolean isStringDataType(Object o) {
+    Object e = Array.get(o, 0);
+    if (Byte.class.isInstance(e) || byte.class.isInstance(e)) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  private static int byteSizeOfEncodedStrings(Object obj) {
+    if (isStringDataType(obj)) {
+      return stringEncodedSize(obj);
+    }
+    int len = Array.getLength(obj);
+    int size = 0;
+    for (int i = 0; i < len; i ++) {
+      size += byteSizeOfEncodedStrings(Array.get(obj, i));
+    }
+    return size;
+  }
+
+  private static long encodeStringValue(long handle, Object obj, long offset) {
+    if (isStringDataType(obj)) {
+      return offset + setOffsetBytesValue(handle, obj, offset);
+    }
+    int len = Array.getLength(obj);
+    int size = 0;
+    for (int i = 0; i < len; i++) {
+      offset = encodeStringValue(handle, Array.get(obj, i), offset);
+    }
+    return offset;
+  }
+
+  private static native int stringEncodedSize(Object value);
+
+  private static native int setOffsetBytesValue(long handle, Object value, long offset);
 
   private static native long allocate(int dtype, long[] shape, long byteSize);
 

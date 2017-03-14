@@ -162,6 +162,10 @@ cc_binary(
     linkstatic = 1,
     deps = [
         "//tensorflow/java/src/main/native",
+        "//tensorflow/contrib/layers:bucketization_op_op_lib",
+        "//tensorflow/contrib/layers:bucketization_op_kernel",
+        "//tensorflow/contrib/layers:sparse_feature_cross_op_op_lib",
+        "//tensorflow/contrib/layers:sparse_feature_cross_op_kernel",
         LINKER_VERSION_SCRIPT,
         LINKER_EXPORTED_SYMBOLS,
     ],

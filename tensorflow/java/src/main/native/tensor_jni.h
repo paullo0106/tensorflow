@@ -24,6 +24,14 @@ extern "C" {
 
 /*
  * Class:     org_tensorflow_Tensor
+ * Method:    stringEncodedSize
+ * Signature: ([B)J
+ */
+JNIEXPORT jint JNICALL
+Java_org_tensorflow_Tensor_stringEncodedSize(JNIEnv *, jclass, jbyteArray);
+
+/*
+ * Class:     org_tensorflow_Tensor
  * Method:    allocate
  * Signature: (I[JJ)J
  */
@@ -80,6 +88,18 @@ JNIEXPORT jlongArray JNICALL Java_org_tensorflow_Tensor_shape(JNIEnv *, jclass,
  */
 JNIEXPORT void JNICALL Java_org_tensorflow_Tensor_setValue(JNIEnv *, jclass,
                                                            jlong, jobject);
+
+/*
+ * Class:     org_tensorflow_Tensor
+ * Method:    setOffsetBytesValue
+ * Signature: (JLjava/lang/Object;)V
+ *
+ * REQUIRES: The jobject's type and shape are compatible the with the DataType
+ * and shape of the Tensor referred to by the jlong handle.
+ */
+JNIEXPORT int JNICALL Java_org_tensorflow_Tensor_setOffsetBytesValue(JNIEnv *, jclass,
+                                                                     jlong, jbyteArray,
+                                                                     jlong);
 
 /*
  * Class:     org_tensorflow_Tensor

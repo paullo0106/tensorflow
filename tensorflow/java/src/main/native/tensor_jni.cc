@@ -254,6 +254,12 @@ JNIEXPORT jlong JNICALL Java_org_tensorflow_Tensor_allocate(JNIEnv* env,
   return reinterpret_cast<jlong>(t);
 }
 
+JNIEXPORT jint JNICALL Java_org_tensorflow_Tensor_stringEncodedSize(
+    JNIEnv* env, jclass clazz, jbyteArray value) {
+  size_t src_len = static_cast<int>(env->GetArrayLength(value));
+  return TF_StringEncodedSize(src_len);
+}
+
 JNIEXPORT jlong JNICALL Java_org_tensorflow_Tensor_allocateScalarBytes(
     JNIEnv* env, jclass clazz, jbyteArray value) {
   // TF_STRING tensors are encoded with a table of 8-byte offsets followed by
@@ -345,6 +351,34 @@ JNIEXPORT void JNICALL Java_org_tensorflow_Tensor_setValue(JNIEnv* env,
     writeNDArray(env, static_cast<jarray>(value), dtype, num_dims,
                  static_cast<char*>(data), sz);
   }
+}
+
+JNIEXPORT int JNICALL Java_org_tensorflow_Tensor_setOffsetBytesValue(JNIEnv* env,
+    jclass clazz, jlong handle, jbyteArray value, jlong offset) {
+  TF_Tensor* t = requireHandle(env, handle);
+  if (t == nullptr) return 0;
+  size_t src_len = static_cast<int>(env->GetArrayLength(value));
+  size_t dst_len = TF_StringEncodedSize(src_len);
+  char* dst = static_cast<char*>(TF_TensorData(t)) + offset;
+  memcpy(dst, &offset, 8);
+  // writeScalar(env, (jlong) offset, TF_INT64, dst, 8); // 8 byte offset
+  // dst = dst + 8; //advancing the pointer, no need, added 8 later
+
+  jbyte* jsrc = env->GetByteArrayElements(value, nullptr);
+  std::unique_ptr<char[]> src(new char[src_len]);
+  static_assert(sizeof(jbyte) == sizeof(char),
+                "Cannot convert Java byte to a C char");
+  memcpy(src.get(), jsrc, src_len);
+  env->ReleaseByteArrayElements(value, jsrc, JNI_ABORT);
+
+  TF_Status* status = TF_NewStatus();
+  size_t byteSize = TF_StringEncode(src.get(), src_len, dst + 8, dst_len, status);
+  if (!throwExceptionIfNotOK(env, status)) {
+    TF_DeleteStatus(status);
+    return 0;
+  }
+  TF_DeleteStatus(status);
+  return byteSize + 8; // number of bytes encoded
 }
 
 #define DEFINE_GET_SCALAR_METHOD(jtype, dtype, method_suffix)                  \
