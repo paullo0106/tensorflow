@@ -92,14 +92,27 @@ JNIEXPORT void JNICALL Java_org_tensorflow_Tensor_setValue(JNIEnv *, jclass,
 /*
  * Class:     org_tensorflow_Tensor
  * Method:    setOffsetBytesValue
- * Signature: (JLjava/lang/Object;)V
+ * Signature: (JII[BJ)I
  *
  * REQUIRES: The jobject's type and shape are compatible the with the DataType
  * and shape of the Tensor referred to by the jlong handle.
  */
-JNIEXPORT int JNICALL Java_org_tensorflow_Tensor_setOffsetBytesValue(JNIEnv *, jclass,
-                                                                     jlong, jbyteArray,
+JNIEXPORT jint JNICALL Java_org_tensorflow_Tensor_setOffsetBytesValue(JNIEnv *, jclass,
+                                                                     jlong,
+                                                                     jint elems, jint index,
+                                                                     jbyteArray,
                                                                      jlong);
+
+/*
+ * Class:     org_tensorflow_Tensor
+ * Method:    getElementAt
+ * Signature: (JII)[B
+ *
+ * REQUIRES: The jobject's type and shape are compatible the with the DataType
+ * and shape of the Tensor referred to by the jlong handle.
+ */
+JNIEXPORT jbyteArray JNICALL Java_org_tensorflow_Tensor_getElementAt(JNIEnv *, jclass,
+                                                                     jlong, jint, jint);
 
 /*
  * Class:     org_tensorflow_Tensor

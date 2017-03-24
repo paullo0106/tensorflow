@@ -15,6 +15,7 @@ limitations under the License.
 
 package org.tensorflow;
 
+import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Array;
 import java.nio.Buffer;
 import java.nio.BufferOverflowException;
@@ -24,6 +25,7 @@ import java.nio.DoubleBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.nio.LongBuffer;
+import java.util.AbstractMap;
 import java.util.Arrays;
 
 /**
@@ -85,9 +87,10 @@ public final class Tensor implements AutoCloseable {
       t.nativeHandle = allocate(t.dtype.c(), t.shapeCopy, byteSize);
       setValue(t.nativeHandle, obj);
     } else if (t.shapeCopy.length != 0) {
-      int byteSize = 8 * numElements(t.shapeCopy) + byteSizeOfEncodedStrings(obj);
+      int elems = numElements(t.shapeCopy);
+      int byteSize = 8 * elems + byteSizeOfEncodedStrings(obj);
       t.nativeHandle = allocate(t.dtype.c(), t.shapeCopy, byteSize);
-      encodeStringValue(t.nativeHandle, obj, 0);
+      encodeStringValue(t.nativeHandle, elems, 0, obj, 0);
     } else {
       t.nativeHandle = allocateScalarBytes((byte[]) obj);
     }
@@ -348,9 +351,31 @@ public final class Tensor implements AutoCloseable {
    *     with the tensor (for example, mismatched data types or shapes).
    */
   public <T> T copyTo(T dst) {
-    throwExceptionIfTypeIsIncompatible(dst);
-    readNDArray(nativeHandle, dst);
+    if (dtype != DataType.STRING) {
+      throwExceptionIfTypeIsIncompatible(dst);
+      readNDArray(nativeHandle, dst);
+    } else {
+      decodeStringValue(nativeHandle, numElements(), 0, dst, dst, 0);
+    }
     return dst;
+  }
+
+  private static int decodeStringValue(long handle, int elems, int index, Object obj, Object slice, int slot) {
+    if (obj instanceof String) {
+      byte[] byteStr = getElementAt(handle, elems, index);
+      try {
+        String curr = new String(byteStr, "UTF-8");
+        Array.set((String[])slice, slot, curr);
+      } catch (UnsupportedEncodingException e) {
+        throw new AssertionError("UTF-8 not supported");
+      }
+      return index + 1;
+    }
+    int len = Array.getLength(obj);
+    for (int i = 0; i < len; i++) {
+      index = decodeStringValue(handle, elems, index, Array.get(obj, i), obj, i);
+    }
+    return index;
   }
 
   /**
@@ -613,21 +638,25 @@ public final class Tensor implements AutoCloseable {
     return size;
   }
 
-  private static long encodeStringValue(long handle, Object obj, long offset) {
+  private static AbstractMap.SimpleEntry<Integer, Long> encodeStringValue(long handle, int elems, int index, Object obj, long offset) {
     if (isStringDataType(obj)) {
-      return offset + setOffsetBytesValue(handle, obj, offset);
+      offset = offset + setOffsetBytesValue(handle, elems, index, obj, offset);
+      return new AbstractMap.SimpleEntry<Integer, Long>(index + 1, offset);
     }
     int len = Array.getLength(obj);
-    int size = 0;
     for (int i = 0; i < len; i++) {
-      offset = encodeStringValue(handle, Array.get(obj, i), offset);
+      AbstractMap.SimpleEntry<Integer, Long> kv = encodeStringValue(handle, elems, index, Array.get(obj, i), offset);
+      index = kv.getKey();
+      offset = kv.getValue();
     }
-    return offset;
+    return new AbstractMap.SimpleEntry<Integer, Long>(index, offset);
   }
 
   private static native int stringEncodedSize(Object value);
 
-  private static native int setOffsetBytesValue(long handle, Object value, long offset);
+  private static native int setOffsetBytesValue(long handle, int elems, int index, Object value, long offset);
+
+  private static native byte[] getElementAt(long handle, int numElements, int index);
 
   private static native long allocate(int dtype, long[] shape, long byteSize);
 

@@ -354,15 +354,16 @@ JNIEXPORT void JNICALL Java_org_tensorflow_Tensor_setValue(JNIEnv* env,
 }
 
 JNIEXPORT int JNICALL Java_org_tensorflow_Tensor_setOffsetBytesValue(JNIEnv* env,
-    jclass clazz, jlong handle, jbyteArray value, jlong offset) {
+    jclass clazz, jlong handle, jint elems, jint index, jbyteArray value, jlong offset) {
   TF_Tensor* t = requireHandle(env, handle);
   if (t == nullptr) return 0;
   size_t src_len = static_cast<int>(env->GetArrayLength(value));
   size_t dst_len = TF_StringEncodedSize(src_len);
-  char* dst = static_cast<char*>(TF_TensorData(t)) + offset;
+  // offset destination (all offsets are at the beginning)
+  char* dst = static_cast<char*>(TF_TensorData(t)) + index * 8;
   memcpy(dst, &offset, 8);
-  // writeScalar(env, (jlong) offset, TF_INT64, dst, 8); // 8 byte offset
-  // dst = dst + 8; //advancing the pointer, no need, added 8 later
+  // value destination after all offsets
+  dst = static_cast<char*>(TF_TensorData(t)) + elems * 8 + offset;
 
   jbyte* jsrc = env->GetByteArrayElements(value, nullptr);
   std::unique_ptr<char[]> src(new char[src_len]);
@@ -372,13 +373,13 @@ JNIEXPORT int JNICALL Java_org_tensorflow_Tensor_setOffsetBytesValue(JNIEnv* env
   env->ReleaseByteArrayElements(value, jsrc, JNI_ABORT);
 
   TF_Status* status = TF_NewStatus();
-  size_t byteSize = TF_StringEncode(src.get(), src_len, dst + 8, dst_len, status);
+  size_t byteSize = TF_StringEncode(src.get(), src_len, dst, dst_len, status);
   if (!throwExceptionIfNotOK(env, status)) {
     TF_DeleteStatus(status);
     return 0;
   }
   TF_DeleteStatus(status);
-  return byteSize + 8; // number of bytes encoded
+  return byteSize; // number of bytes encoded (do not count offsets)
 }
 
 #define DEFINE_GET_SCALAR_METHOD(jtype, dtype, method_suffix)                  \
@@ -460,4 +461,35 @@ JNIEXPORT void JNICALL Java_org_tensorflow_Tensor_readNDArray(JNIEnv* env,
   }
   readNDArray(env, dtype, static_cast<const char*>(data), sz, num_dims,
               static_cast<jarray>(value));
+}
+
+JNIEXPORT jbyteArray JNICALL Java_org_tensorflow_Tensor_getElementAt(
+    JNIEnv* env, jclass clazz, jlong handle, jint num_elems, jint index) {
+  TF_Tensor* t = requireHandle(env, handle);
+  if (t == nullptr) return nullptr;
+
+  const char* data = static_cast<const char*>(TF_TensorData(t));
+  uint64_t offset = 0;
+  memcpy(&offset, data + index*8, sizeof(offset));
+  const char* src = data + num_elems*8 + offset;
+  size_t src_len = TF_TensorByteSize(t) - num_elems*8;
+  if (offset >= src_len) {
+    throwException(env, kIllegalArgumentException,
+                   "invalid tensor encoding: bad offsets");
+    return nullptr;
+  }
+
+  jbyteArray ret = nullptr;
+  const char* dst = nullptr;
+  size_t dst_len = 0;
+  TF_Status* status = TF_NewStatus();
+  TF_StringDecode(src, src_len, &dst, &dst_len, status);
+  if (throwExceptionIfNotOK(env, status)) {
+    ret = env->NewByteArray(dst_len);
+    jbyte* cpy = env->GetByteArrayElements(ret, nullptr);
+    memcpy(cpy, dst, dst_len);
+    env->ReleaseByteArrayElements(ret, cpy, 0);
+  }
+  TF_DeleteStatus(status);
+  return ret;
 }
